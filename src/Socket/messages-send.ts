@@ -550,71 +550,164 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					stanza.attrs.to = destinationJid
 				}
 
-				if(shouldIncludeDeviceIdentity) {
-					(stanza.content as BinaryNode[]).push({
-						tag: 'device-identity',
-						attrs: { },
-						content: encodeSignedDeviceIdentity(authState.creds.account!, true)
-					})
-
-					logger.debug({ jid }, 'adding device identity')
-				}
-
-				if(additionalNodes && additionalNodes.length > 0) {
-					(stanza.content as BinaryNode[]).push(...additionalNodes)
-				}
-
-				logger.debug({ msgId }, `sending message to ${participants.length} devices`)
-
-				await sendNode(stanza)
-			}
-		)
-
-		return msgId
-	}
-
-
-	const getMessageType = (message: proto.IMessage) => {
-		if(message.pollCreationMessage || message.pollCreationMessageV2 || message.pollCreationMessageV3) {
-			return 'poll'
-		}
-
-		return 'text'
-	}
-
-	const getMediaType = (message: proto.IMessage) => {
-		if(message.imageMessage) {
-			return 'image'
-		} else if(message.videoMessage) {
-			return message.videoMessage.gifPlayback ? 'gif' : 'video'
-		} else if(message.audioMessage) {
-			return message.audioMessage.ptt ? 'ptt' : 'audio'
-		} else if(message.contactMessage) {
-			return 'vcard'
-		} else if(message.documentMessage) {
-			return 'document'
-		} else if(message.contactsArrayMessage) {
-			return 'contact_array'
-		} else if(message.liveLocationMessage) {
-			return 'livelocation'
-		} else if(message.stickerMessage) {
-			return 'sticker'
-		} else if(message.listMessage) {
-			return 'list'
-		} else if(message.listResponseMessage) {
-			return 'list_response'
-		} else if(message.buttonsResponseMessage) {
-			return 'buttons_response'
-		} else if(message.orderMessage) {
-			return 'order'
-		} else if(message.productMessage) {
-			return 'product'
-		} else if(message.interactiveResponseMessage) {
+				  if (shouldIncludeDeviceIdentity) {
+                stanza.content.push({
+                    tag: 'device-identity',
+                    attrs: {},
+                    content: (0, Utils_1.encodeSignedDeviceIdentity)(authState.creds.account, true)
+                });
+                logger.debug({ jid }, 'adding device identity');
+            }
+            if (additionalNodes && additionalNodes.length > 0) {
+                stanza.content.push(...additionalNodes);
+            }
+            else {
+                if (((0, WABinary_1.isJidGroup)(jid) || (0, WABinary_1.isJidUser)(jid)) && ((message === null || message === void 0 ? void 0 : message.viewOnceMessage) ? message === null || message === void 0 ? void 0 : message.viewOnceMessage : (message === null || message === void 0 ? void 0 : message.viewOnceMessageV2) ? message === null || message === void 0 ? void 0 : message.viewOnceMessageV2 : (message === null || message === void 0 ? void 0 : message.viewOnceMessageV2Extension) ? message === null || message === void 0 ? void 0 : message.viewOnceMessageV2Extension : (message === null || message === void 0 ? void 0 : message.ephemeralMessage) ? message === null || message === void 0 ? void 0 : message.ephemeralMessage : (message === null || message === void 0 ? void 0 : message.templateMessage) ? message === null || message === void 0 ? void 0 : message.templateMessage : (message === null || message === void 0 ? void 0 : message.interactiveMessage) ? message === null || message === void 0 ? void 0 : message.interactiveMessage : message === null || message === void 0 ? void 0 : message.buttonsMessage)) {
+                    stanza.content.push({
+                        tag: 'biz',
+                        attrs: {},
+                        content: [{
+                                tag: 'interactive',
+                                attrs: {
+                                    type: 'native_flow',
+                                    v: '1'
+                                },
+                                content: [{
+                                        tag: 'native_flow',
+                                        attrs: { name: 'quick_reply' }
+                                    }]
+                            }]
+                    });
+                }
+            }
+            const buttonType = getButtonType(message);
+            if (buttonType) {
+                stanza.content.push({
+                    tag: 'biz',
+                    attrs: {},
+                    content: [
+                        {
+                            tag: buttonType,
+                            attrs: getButtonArgs(message),
+                        }
+                    ]
+                });
+                logger.debug({ jid }, 'adding business node');
+            }
+            logger.debug({ msgId }, `sending message to ${participants.length} devices`);
+            await sendNode(stanza);
+        });
+        return msgId;
+    };
+    const getTypeMessage = (msg) => {
+        if (msg.viewOnceMessage) {
+            return getTypeMessage(msg.viewOnceMessage.message);
+        }
+        else if (msg.viewOnceMessageV2) {
+            return getTypeMessage(msg.viewOnceMessageV2.message);
+        }
+        else if (msg.viewOnceMessageV2Extension) {
+            return getTypeMessage(msg.viewOnceMessageV2Extension.message);
+        }
+        else if (msg.ephemeralMessage) {
+            return getTypeMessage(msg.ephemeralMessage.message);
+        }
+        else if (msg.documentWithCaptionMessage) {
+            return getTypeMessage(msg.documentWithCaptionMessage.message);
+        }
+        else if (msg.reactionMessage) {
+            return 'reaction';
+        }
+        else if (msg.pollCreationMessage || msg.pollCreationMessageV2 || msg.pollCreationMessageV3 || msg.pollUpdateMessage) {
+            return 'reaction';
+        }
+        else if (getMediaType(msg)) {
+            return 'media';
+        }
+        else {
+            return 'text';
+        }
+    };
+    const getMediaType = (message) => {
+        if (message.imageMessage) {
+            return 'image';
+        }
+        else if (message.videoMessage) {
+            return message.videoMessage.gifPlayback ? 'gif' : 'video';
+        }
+        else if (message.audioMessage) {
+            return message.audioMessage.ptt ? 'ptt' : 'audio';
+        }
+        else if (message.contactMessage) {
+            return 'vcard';
+        }
+        else if (message.documentMessage) {
+            return 'document';
+        }
+        else if (message.contactsArrayMessage) {
+            return 'contact_array';
+        }
+        else if (message.liveLocationMessage) {
+            return 'livelocation';
+        }
+        else if (message.stickerMessage) {
+            return 'sticker';
+        }
+        else if (message.listMessage) {
+            return 'list';
+        }
+        else if (message.listResponseMessage) {
+            return 'list_response';
+        }
+        else if (message.buttonsResponseMessage) {
+            return 'buttons_response';
+        }
+        else if (message.orderMessage) {
+            return 'order';
+        }
+        else if (message.productMessage) {
+            return 'product';
+        }
+        else if (message.interactiveResponseMessage) {
 			return 'native_flow_response'
 		} else if(message.groupInviteMessage) {
 			return 'url'
-		}
-	}
+        }
+        
+    };
+    const getButtonType = (message) => {
+        if (message.buttonsMessage) {
+            return 'buttons';
+        }
+        else if (message.buttonsResponseMessage) {
+            return 'buttons_response';
+        }
+        else if (message.interactiveResponseMessage) {
+            return 'interactive_response';
+        }
+        else if (message.listMessage) {
+            return 'list';
+        }
+        else if (message.listResponseMessage) {
+            return 'list_response';
+        }
+    };
+    const getButtonArgs = (message) => {
+        if (message.templateMessage) {
+            // TODO: Add attributes
+            return {};
+        }
+        else if (message.listMessage) {
+            const type = message.listMessage.listType;
+            if (!type) {
+                throw new boom_1.Boom('Expected list type inside message');
+            }
+            return { v: '2', type: ListType[type].toLowerCase() };
+        }
+        else {
+            return {};
+        }
+    };
 
 	const getPrivacyTokens = async(jids: string[]) => {
 		const t = unixTimestampSeconds().toString()
